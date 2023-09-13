@@ -14,10 +14,14 @@ namespace JetFileBrowser.FileBrowser.FileTree.Physical {
         private Win32FileSystem() {
         }
 
-        public override Task<bool> LoadContent(TreeEntry target) {
-            if (!target.CanHoldItems)
+        public static bool GetFilePath(TreeEntry entry, out string path) {
+            return entry.TryGetDataValue(FilePathKey, out path);
+        }
+
+        public override Task LoadContent(TreeEntry target) {
+            if (!target.IsDirectory)
                 throw new Exception("File is not a directory");
-            if (!target.TryGetDataValue(FilePathKey, out string path))
+            if (!GetFilePath(target, out string path))
                 throw new Exception("File does not have a file path associated with it");
             return this.LoadContentWin32(path, target);
         }
@@ -89,7 +93,7 @@ namespace JetFileBrowser.FileBrowser.FileTree.Physical {
                 entry = new PhysicalZipVirtualFile(new ZipFileSystem(() => new BufferedStream(File.OpenRead(path))));
             }
             else {
-                entry = new PhysicalVirtualFile() { FileSystem = this };
+                entry = new PhysicalVirtualFile(false) { FileSystem = this };
             }
 
             entry.SetData(FilePathKey, path);
@@ -106,9 +110,9 @@ namespace JetFileBrowser.FileBrowser.FileTree.Physical {
         }
 
         public async Task<IAsyncEntryEnumerator> EnumerateContent(TreeEntry entry) {
-            if (!entry.CanHoldItems)
+            if (!entry.IsDirectory)
                 throw new Exception("File is not a directory");
-            if (!entry.TryGetDataValue(FilePathKey, out string dirPath))
+            if (!GetFilePath(entry, out string dirPath))
                 throw new Exception("File does not have a file path associated with it");
 
             DirectoryInfo info = new DirectoryInfo(dirPath);

@@ -9,7 +9,7 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         }
 
         /// <summary>
-        /// Loads the given target's contents. This is called automatically by entries whose <see cref="TreeEntry.CanHoldItems"/>
+        /// Loads the given target's contents. This is called automatically by entries whose <see cref="TreeEntry.IsDirectory"/>
         /// property is true, and when its content has not already been loaded (using lazy loading logic)
         /// <para>
         /// Errors should be handled by this function, and exceptions should only be thrown if something really bad
@@ -20,7 +20,7 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         /// <returns>
         /// A flag to indicate if content was actually loaded for the given entry.
         /// </returns>
-        public abstract Task<bool> LoadContent(TreeEntry target);
+        public abstract Task LoadContent(TreeEntry target);
 
         /// <summary>
         /// Refreshes the content of the given entry. This can be as simple as clearing the entry and then

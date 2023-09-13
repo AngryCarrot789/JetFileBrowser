@@ -98,6 +98,11 @@
     <Compile Include="Explorer\Controls\DoubleClickEditBox.xaml.cs">
       <DependentUpon>DoubleClickEditBox.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Explorer\Controls\ExplorerViewModeDataTemplateSelector.cs" />
+    <Compile Include="Explorer\Controls\FileExplorerControl.cs" />
+    <Compile Include="Explorer\Controls\ListBasedExplorerControl.xaml.cs">
+      <DependentUpon>ListBasedExplorerControl.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Explorer\FileTreeControl.cs" />
     <Compile Include="Explorer\FileTreeItem.cs" />
     <Compile Include="Explorer\Icons\CSIDL.cs" />
@@ -251,6 +256,10 @@
     <Page Include="Explorer\Controls\DoubleClickEditBox.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Explorer\Controls\ListBasedExplorerControl.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Explorer\FileExplorerStyles.xaml">
       <Generator>MSBuild:Compile</Generator>

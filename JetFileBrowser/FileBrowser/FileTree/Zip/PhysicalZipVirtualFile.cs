@@ -7,11 +7,9 @@ namespace JetFileBrowser.FileBrowser.FileTree.Zip {
     /// A class for zip files (.zip, .jar, etc.)
     /// </summary>
     public class PhysicalZipVirtualFile : PhysicalVirtualFile, IZipRoot {
-        public override bool CanHoldItems => true;
-
         public ZipArchive Archive { get; set; }
 
-        public PhysicalZipVirtualFile(TreeFileSystem fileSystem) {
+        public PhysicalZipVirtualFile(TreeFileSystem fileSystem) : base(true) {
             this.FileSystem = fileSystem;
         }
 

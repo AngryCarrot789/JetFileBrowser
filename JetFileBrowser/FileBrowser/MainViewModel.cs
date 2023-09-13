@@ -8,12 +8,32 @@ namespace JetFileBrowser.FileBrowser {
     public class MainViewModel : BaseViewModel {
         public FileTreeViewModel FileTree { get; }
 
+        public TreeEntry CurrentFolder { get; private set; }
+
         public AsyncRelayCommand OpenFolderCommand { get; }
 
         public MainViewModel() {
             this.OpenFolderCommand = new AsyncRelayCommand(this.OpenFolderAction);
             this.FileTree = new FileTreeViewModel();
             this.FileTree.OpenFile += this.ExplorerOnOpenFile;
+            this.FileTree.NavigateToItem += this.FileTreeOnNavigateToItem;
+            this.CurrentFolder = this.FileTree.Root;
+        }
+
+        private Task FileTreeOnNavigateToItem(TreeEntry file) {
+            if (file.IsDirectory) {
+                this.CurrentFolder = file;
+            }
+            else if (file.Parent != null) {
+                this.CurrentFolder = file.Parent;
+            }
+            else {
+                this.CurrentFolder = this.FileTree.Root;
+            }
+
+            this.RaisePropertyChanged(nameof(this.CurrentFolder));
+
+            return Task.CompletedTask;
         }
 
         private async Task ExplorerOnOpenFile(TreeEntry file) {

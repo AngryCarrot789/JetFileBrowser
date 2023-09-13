@@ -17,6 +17,7 @@
                 <ResourceDictionary Source="AdvancedContextService/ContextStyles.xaml" />
                 <ResourceDictionary Source="PropertyEditing/PropertyEditorStyles.xaml" />
                 <ResourceDictionary Source="Notifications/NotificationStyles.xaml" />
+                <ResourceDictionary Source="Explorer/FileExplorerStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

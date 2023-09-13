@@ -4,6 +4,7 @@
                     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                     xmlns:system="clr-namespace:System;assembly=mscorlib"
                     xmlns:c="clr-namespace:JetFileBrowser.WPF.Converters"
+                    xmlns:controls="clr-namespace:JetFileBrowser.WPF.Explorer.Controls"
                     mc:Ignorable="d">
     <c:FileSizeConverter x:Key="FileSizeConverter"/>
 
@@ -25,6 +26,24 @@
                 <ItemsPanelTemplate>
                     <WrapPanel Orientation="Horizontal"/>
                 </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <controls:ExplorerViewModeDataTemplateSelector x:Key="ExplorerViewModeDataTemplateSelector"/>
+    <Style TargetType="{x:Type controls:FileExplorerControl}">
+        <Setter Property="Background" Value="{DynamicResource ABrush.AccentTone3.Background.Static}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:FileExplorerControl}">
+                    <Grid>
+                        <!--
+                        <ContentControl Content="{TemplateBinding CurrentFolder}" ContentTemplateSelector="{StaticResource ExplorerViewModeDataTemplateSelector}"/>
+                        -->
+                        <controls:ListBasedExplorerControl DataContext="{TemplateBinding CurrentFolder}"/>
+                    </Grid>
+                </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>

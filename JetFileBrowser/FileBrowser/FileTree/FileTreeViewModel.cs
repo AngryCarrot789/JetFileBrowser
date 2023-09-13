@@ -13,8 +13,11 @@ namespace JetFileBrowser.FileBrowser.FileTree {
     /// <summary>
     /// A class that stores a tree of virtual files, while supporting things like drag drop, selection, etc.
     /// </summary>
-    public class FileTreeViewModel : BaseViewModel, IDropHandler {
+    public class FileTreeViewModel : BaseViewModel, IFileDropHandler {
         private List<OpenFileEventHandler> openFileHandlers;
+        private List<NavigateToFileEventHandler> navigateToFileHandlers;
+
+        bool IFileDropHandler.IsProcessingDrop { get; set; }
 
         public AsyncRelayCommand<TreeEntry> OpenItemCommand { get; }
 
@@ -22,7 +25,11 @@ namespace JetFileBrowser.FileBrowser.FileTree {
 
         public ObservableCollection<TreeEntry> SelectedItems { get; }
 
-        public event NavigateToFileEventHandler NavigateToItem;
+        public event NavigateToFileEventHandler NavigateToItem {
+            add => HandlerList.AddHandler(ref this.navigateToFileHandlers, value);
+            remove => HandlerList.RemoveHandler(ref this.navigateToFileHandlers, value);
+        }
+
         public event OpenFileEventHandler OpenFile {
             add => HandlerList.AddHandler(ref this.openFileHandlers, value);
             remove => HandlerList.RemoveHandler(ref this.openFileHandlers, value);
@@ -30,12 +37,14 @@ namespace JetFileBrowser.FileBrowser.FileTree {
 
         public FileTreeViewModel() {
             this.Root = new RootTreeEntry();
+            this.Root.SetFileTree(this);
             this.SelectedItems = new ObservableCollection<TreeEntry>();
             this.OpenItemCommand = new AsyncRelayCommand<TreeEntry>(this.OpenFileAction);
         }
 
         private class RootTreeEntry : TreeEntry {
-            public override bool CanHoldItems => true;
+            public RootTreeEntry() : base(true) {
+            }
         }
 
         private async Task OpenFileAction(TreeEntry item) {
@@ -51,14 +60,14 @@ namespace JetFileBrowser.FileBrowser.FileTree {
 
         public DropType OnDropEnter(string[] paths) {
             Debug.WriteLine("Drop Enter! " + string.Join(", ", paths));
-            return DropType.Link;
+            return DropType.All;
         }
 
         public void OnDropLeave(bool isCancelled) {
             Debug.WriteLine("Drop Leave! " + (isCancelled ? "Cancelled" : "Not cancelled"));
         }
 
-        public Task OnFilesDropped(string[] paths) {
+        public Task OnFilesDropped(string[] paths, DropType dropType) {
             foreach (string path in paths) {
                 if (Directory.Exists(path)) {
                     this.Root.AddItemCore(Win32FileSystem.Instance.ForDirectory(path));
@@ -75,11 +84,8 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         /// <summary>
         /// Called when the user tries to navigate to the given file. May be a file or folder
         /// </summary>
-        public Task OnNavigate(TreeEntry file) {
-            NavigateToFileEventHandler x = this.NavigateToItem;
-            if (x != null)
-                return x(file);
-            return Task.CompletedTask;
+        public async Task OnNavigate(TreeEntry file) {
+            await HandlerList.HandleAsync(this.navigateToFileHandlers, file, (x, y) => x(y));
         }
     }
 }

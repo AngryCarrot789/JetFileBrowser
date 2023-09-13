@@ -24,9 +24,9 @@ namespace JetFileBrowser.FileBrowser.FileTree.Zip {
             this.StreamProvider = streamProvider;
         }
 
-        public override async Task<bool> LoadContent(TreeEntry target) {
+        public override async Task LoadContent(TreeEntry target) {
             if (!(target is IZipRoot root))
-                return true;
+                return;
 
             if (this.Archive == null) {
                 Stream stream;
@@ -35,7 +35,7 @@ namespace JetFileBrowser.FileBrowser.FileTree.Zip {
                 }
                 catch (Exception e) {
                     await IoC.MessageDialogs.ShowMessageExAsync("Zip Failure", "Failed to open zip stream", e.GetToString());
-                    return false;
+                    return;
                 }
 
                 try {
@@ -44,15 +44,13 @@ namespace JetFileBrowser.FileBrowser.FileTree.Zip {
                 catch (Exception e) {
                     await IoC.MessageDialogs.ShowMessageExAsync("Zip Failure", "Failed to read zip contents", e.GetToString());
                     stream.Dispose();
-                    return false;
+                    return;
                 }
 
                 foreach (ZipArchiveEntry entry in this.Archive.Entries) {
                     ProcessEntry(target, entry);
                 }
             }
-
-            return true;
         }
 
         public static string GetFileName(string path, out bool isDirectory) {
@@ -114,7 +112,7 @@ namespace JetFileBrowser.FileBrowser.FileTree.Zip {
                 file = new NestedZipVirtualFile(new ZipFileSystem(ProvideEntryStream(fs, path)), path);
             }
             else {
-                file = new ZipEntryVirtualFile(path) {
+                file = new ZipEntryVirtualFile(path, false) {
                     FileSystem = fs
                 };
             }

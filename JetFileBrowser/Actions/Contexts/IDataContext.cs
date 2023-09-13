@@ -7,14 +7,14 @@ namespace JetFileBrowser.Actions.Contexts {
     /// </summary>
     public interface IDataContext {
         /// <summary>
-        /// Returns all of the available context. Will not return  null, but may be empty
+        /// Returns all of the available context. Will not return null, but may be empty
         /// </summary>
-        IEnumerable<object> Context { get; }
+        IReadOnlyList<object> Context { get; }
 
         /// <summary>
         /// Returns all of the custom data. Will not return null, but may be empty
         /// </summary>
-        IEnumerable<(string, object)> Entries { get; }
+        IReadOnlyDictionary<string, object> Entries { get; }
 
         /// <summary>
         /// Gets a context object of a specific type

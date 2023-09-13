@@ -1,19 +1,25 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace JetFileBrowser.Actions.Contexts {
+    /// <summary>
+    /// An implementation of <see cref="IDataContext"/>. This class is mutable even though the interface is not meant to be
+    /// </summary>
     public class DataContext : IDataContext {
+        private static readonly Dictionary<string, object> EmptyDictionary = new Dictionary<string, object>();
+
+        public List<object> ContextList { get; }
+
         public Dictionary<string, object> EntryMap { get; set; }
-        public List<object> InternalContext { get; }
 
-        public IEnumerable<object> Context => this.InternalContext;
+        IReadOnlyList<object> IDataContext.Context => this.ContextList;
 
-        // not read only dictionary because EntryMap may be null
-        public IEnumerable<(string, object)> Entries => this.EntryMap != null ? this.EntryMap.Select(x => (x.Key, x.Value)) : Enumerable.Empty<(string, object)>();
+        IReadOnlyDictionary<string, object> IDataContext.Entries => this.EntryMap ?? EmptyDictionary;
 
         public DataContext() {
-            this.InternalContext = new List<object>();
+            this.ContextList = new List<object>();
         }
 
         public DataContext(object primaryContext) : this() {
@@ -26,7 +32,7 @@ namespace JetFileBrowser.Actions.Contexts {
         }
 
         public bool TryGetContext<T>(out T value) {
-            foreach (object obj in this.InternalContext) {
+            foreach (object obj in this.ContextList) {
                 if (obj is T t) {
                     value = t;
                     return true;
@@ -38,11 +44,11 @@ namespace JetFileBrowser.Actions.Contexts {
         }
 
         public bool TryGetContext(Type type, out object value) {
-            return (value = this.InternalContext.First(type.IsInstanceOfType)) != null;
+            return (value = this.ContextList.First(type.IsInstanceOfType)) != null;
         }
 
         public bool HasContext<T>() {
-            return this.InternalContext.Any(x => x is T);
+            return this.ContextList.Any(x => x is T);
         }
 
         public bool TryGet<T>(string key, out T value) {
@@ -73,7 +79,7 @@ namespace JetFileBrowser.Actions.Contexts {
         }
 
         public void AddContext(object context) {
-            this.InternalContext.Add(context);
+            this.ContextList.Add(context);
         }
 
         public void Set(string key, object value) {
@@ -95,9 +101,10 @@ namespace JetFileBrowser.Actions.Contexts {
 
         public void Merge(IDataContext ctx) {
             foreach (object value in ctx.Context) {
-                this.InternalContext.Add(value);
+                this.ContextList.Add(value);
             }
 
+            IReadOnlyDictionary<string, object> entries;
             if (ctx is DataContext ctxImpl) {
                 // slight optimisation; no need to deconstruct KeyValuePairs into tuples
                 if (ctxImpl.EntryMap != null && ctxImpl.EntryMap.Count > 0) {
@@ -111,15 +118,11 @@ namespace JetFileBrowser.Actions.Contexts {
                     }
                 }
             }
-            else {
-                List<(string, object)> list = ctx.Entries.ToList();
-                if (list.Count < 1) {
-                    return;
-                }
-
+            else if ((entries = ctx.Entries).Count > 0) {
+                // IReadOnlyDictionary was added after Dictionary so the ctor won't accept the read only version :'(
                 Dictionary<string, object> map = this.EntryMap ?? (this.EntryMap = new Dictionary<string, object>());
-                foreach ((string a, object b) in list) {
-                    map[a] = b;
+                foreach (KeyValuePair<string, object> entry in entries) {
+                    map[entry.Key] = entry.Value;
                 }
             }
         }

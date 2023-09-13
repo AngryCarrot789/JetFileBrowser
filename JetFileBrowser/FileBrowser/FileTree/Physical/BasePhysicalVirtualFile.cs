@@ -1,11 +1,13 @@
 using System.Collections.Specialized;
 using System.IO;
+using JetFileBrowser.FileBrowser.FileTree.Interfaces;
+using JetFileBrowser.Utils;
 
 namespace JetFileBrowser.FileBrowser.FileTree.Physical {
     /// <summary>
     /// The base class that represents all physical virtual files
     /// </summary>
-    public abstract class BasePhysicalVirtualFile : TreeEntry {
+    public abstract class BasePhysicalVirtualFile : TreeEntry, IHaveFilePath {
         public string FilePath => this.GetDataValue<string>(Win32FileSystem.FilePathKey);
 
         public string FileName {
@@ -17,8 +19,12 @@ namespace JetFileBrowser.FileBrowser.FileTree.Physical {
             }
         }
 
-        protected BasePhysicalVirtualFile() {
+        protected BasePhysicalVirtualFile(bool isDirectory) : base(isDirectory) {
 
+        }
+
+        public override void AddItemCore(TreeEntry item) {
+            this.InsertItemCore(CollectionUtils.GetSortInsertionIndex(this.Items, item, EntrySorters.CompareDirectoryAndFileName), item);
         }
 
         protected override void OnChildrenCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {

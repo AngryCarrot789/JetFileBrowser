@@ -9,10 +9,10 @@ namespace JetFileBrowser.FileBrowser.FileTree.Zip {
 
         public string ZipFileName => this.GetDataValue<string>(ZipFileSystem.ZipFileNameKey);
 
-        protected BaseZipVirtualFile(string fullZipPath) {
+        protected BaseZipVirtualFile(string fullZipPath, bool isDirectory) : base(isDirectory) {
             this.SetData(ZipFileSystem.ZipFullPathKey, fullZipPath);
             this.SetData(ZipFileSystem.ZipFileNameKey, ZipFileSystem.GetFileName(fullZipPath, out bool isDir));
-            if (this.CanHoldItems) {
+            if (this.IsDirectory) {
                 if (!isDir) {
                     throw new Exception("Entry path is not a directory but this file holds items");
                 }

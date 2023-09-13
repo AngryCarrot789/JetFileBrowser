@@ -21,7 +21,7 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         private readonly ObservableCollection<TreeEntry> items;
         private bool isExpanded;
         private bool isExpanding; // async loading state
-        private bool isContentLoaded; // for lazily loading
+        public bool IsContentLoaded; // for lazily loading
 
         /// <summary>
         /// The parent file
@@ -34,7 +34,7 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         public ReadOnlyObservableCollection<TreeEntry> Items { get; }
 
         /// <summary>
-        /// Whether this item is empty, as in, has no children. This will not throw even if <see cref="CanHoldItems"/> is false
+        /// Whether this item is empty, as in, has no children. This will not throw even if <see cref="IsDirectory"/> is false
         /// </summary>
         public bool IsEmpty => this.items.Count < 1;
 
@@ -81,9 +81,13 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         }
 
         /// <summary>
-        /// Whether or not this tree item can hold child tree items (stored in <see cref="Items"/>). Adding files when this is false will throw
+        /// Whether or not this tree item can hold child tree items (stored in <see cref="Items"/>).
+        /// Attempting to add files when this is false will cause an exception to be thrown.
+        /// <para>
+        /// This value remains constant for the lifetime of the object.
+        /// </para>
         /// </summary>
-        public virtual bool CanHoldItems => false;
+        public bool IsDirectory { get; }
 
         /// <summary>
         /// The file system associated with this entry. Will be null for the absolute tree root (which just acts as a container for entries)
@@ -93,7 +97,7 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         /// <summary>
         /// The explorer associated with this tree entry. This is used to process things such as navigation, deletion, etc.
         /// </summary>
-        public FileTreeViewModel Explorer { get; set; }
+        public FileTreeViewModel FileTree { get; private set; }
 
         /// <summary>
         /// Whether or not this entry is the root container object for a file explorer. This simply just
@@ -108,11 +112,70 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         /// </summary>
         public bool IsTopLevelFile => this.Parent?.IsRootContainer ?? false;
 
-        public TreeEntry() {
+        public TreeEntry(bool isDirectory) {
+            this.IsDirectory = isDirectory;
             this.dataKeys = new Dictionary<string, object>();
             this.items = new ObservableCollection<TreeEntry>();
             this.Items = new ReadOnlyObservableCollection<TreeEntry>(this.items);
             this.items.CollectionChanged += this.OnChildrenCollectionChanged;
+        }
+
+        public virtual void SetFileTree(FileTreeViewModel tree) {
+            this.FileTree = tree;
+            this.RaisePropertyChanged(nameof(this.FileTree));
+            if (this.IsDirectory && this.items.Count > 0) {
+                foreach (TreeEntry item in this.items) {
+                    item.SetFileTree(tree);
+                }
+            }
+        }
+
+        private async void OnExpandInternal() {
+            this.IsExpanding = true;
+            try {
+                this.isExpanded = await this.OnExpandAsync();
+            }
+            finally {
+                this.isExpanding = false;
+            }
+
+            this.RaisePropertyChanged(nameof(this.IsExpanding));
+            if (this.HasExpandedOnce) {
+                this.RaisePropertyChanged(nameof(this.IsExpanded));
+            }
+            else {
+                this.HasExpandedOnce = true;
+                this.RaisePropertyChanged(nameof(this.IsExpanded));
+                this.RaisePropertyChanged(nameof(this.HasExpandedOnce));
+            }
+        }
+
+        /// <summary>
+        /// Called when this tree entry is expanded. By default, this accesses the file system and loads the child content
+        /// </summary>
+        /// <returns>A task to await for the expand to complete (mainly loading content, if possible)</returns>
+        protected virtual async Task<bool> OnExpandAsync() {
+            if (this.IsDirectory && this.FileSystem != null) {
+                if (!this.IsContentLoaded) {
+                    this.IsContentLoaded = true;
+                    await this.FileSystem.LoadContent(this);
+                }
+
+                return this.items.Count > 0;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Refreshes this item, causing any data to be reloaded
+        /// </summary>
+        public virtual async Task RefreshAsync() {
+            if (this.IsDirectory && this.FileSystem != null) {
+                if (this.IsContentLoaded) {
+                    await this.FileSystem.RefreshContent(this);
+                }
+            }
         }
 
         /// <summary>
@@ -140,6 +203,112 @@ namespace JetFileBrowser.FileBrowser.FileTree {
         protected virtual void OnItemRemoved(int index, TreeEntry entry) {
 
         }
+
+        /// <summary>
+        /// Called when this item has been added to a new parent item. <see cref="Parent"/> will not be null.
+        /// This is called after we are added to the parent's internal collection
+        /// </summary>
+        protected virtual void OnAddedToParent() {
+            this.OnParentChanged(this.Parent);
+            this.SetFileTree(this.Parent.FileTree);
+        }
+
+        /// <summary>
+        /// Called before an item is about to be removed from its parent. <see cref="Parent"/> will remain the same as
+        /// it was before this call. Is this called before we are removed from our parent's internal collection
+        /// </summary>
+        protected virtual void OnRemovingFromParent() {
+            this.IsExpanded = false;
+            if (this.IsDirectory) {
+                this.ClearItemsRecursiveInternal();
+            }
+        }
+
+        /// <summary>
+        /// Called after an item was fully removed from its parent. Is this called after we
+        /// are removed from our parent's internal collection
+        /// </summary>
+        /// <param name="parent">The previous parent</param>
+        protected virtual void OnRemovedFromParent(TreeEntry parent) {
+            this.OnParentChanged(parent);
+            this.SetFileTree(null);
+        }
+
+        /// <summary>
+        /// Called by <see cref="OnAddedToParent"/> and <see cref="OnRemovedFromParent"/>. This
+        /// is just used to fire property changed events
+        /// </summary>
+        protected virtual void OnParentChanged(TreeEntry parent) {
+            this.RaisePropertyChanged(nameof(this.Parent));
+            this.RaisePropertyChanged(nameof(this.IsRootContainer));
+            this.RaisePropertyChanged(nameof(this.IsTopLevelFile));
+        }
+
+        public virtual void AddItemCore(TreeEntry item) {
+            this.InsertItemCore(this.items.Count, item);
+        }
+
+        public void AddItemsCore(IEnumerable<TreeEntry> enumerable) {
+            this.ValidateIsDirectory();
+            int i = this.items.Count;
+            foreach (TreeEntry file in enumerable) {
+                this.InsertItemInternal(i++, file);
+            }
+        }
+
+        public void InsertItemCore(int index, TreeEntry item) {
+            this.ValidateIsDirectory();
+            this.InsertItemInternal(index, item);
+        }
+
+        private void InsertItemInternal(int index, TreeEntry item) {
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
+            if (item.Parent != null)
+                throw new Exception("Item already exists in another parent item");
+            if (item.ItemCount > 0 && this.IsPartOfParentHierarchy(item))
+                throw new Exception("Cannot add an item which is already in our parent hierarchy chain");
+
+            item.Parent = this;
+            this.items.Insert(index, item);
+            item.OnAddedToParent();
+            this.OnItemAdded(index, item);
+        }
+
+        public bool RemoveItemCore(TreeEntry item) {
+            this.ValidateIsDirectory();
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
+            int index = this.items.IndexOf(item);
+            if (index == -1)
+                return false;
+            this.RemoveItemAtInternal(index);
+            return true;
+        }
+
+        public void RemoveItemAtCore(int index) {
+            this.ValidateIsDirectory();
+            this.RemoveItemAtInternal(index);
+        }
+
+        private void RemoveItemAtInternal(int index) {
+            TreeEntry item = this.items[index];
+            if (item.Parent != this)
+                throw new Exception("Expected item's parent to equal the current instance");
+
+            item.OnRemovingFromParent();
+            item.Parent = null;
+            this.items.RemoveAt(index);
+            item.OnRemovedFromParent(this);
+            this.OnItemRemoved(index, item);
+        }
+
+        public void ClearItemsRecursiveCore() {
+            this.ValidateIsDirectory();
+            this.ClearItemsRecursiveInternal();
+        }
+
+        #region Composite Data
 
         public T GetDataValue<T>(string key) {
             return this.TryGetDataValue(key, out T value) ? value : throw new Exception("No such data with the key: " + key);
@@ -194,160 +363,12 @@ namespace JetFileBrowser.FileBrowser.FileTree {
 
         }
 
-        private async void OnExpandInternal() {
-            this.IsExpanding = true;
-            try {
-                this.isExpanded = await this.OnExpandAsync();
-            }
-            finally {
-                // hope this doesn't throw... that would be tragic
-                this.IsExpanding = false;
-            }
-
-            if (this.HasExpandedOnce) {
-                this.RaisePropertyChanged(nameof(this.IsExpanded));
-            }
-            else {
-                this.HasExpandedOnce = true;
-                this.RaisePropertyChanged(nameof(this.IsExpanded));
-                this.RaisePropertyChanged(nameof(this.HasExpandedOnce));
-            }
-        }
-
-        /// <summary>
-        /// Called when this tree entry is expanded. An entry may be
-        /// </summary>
-        /// <returns></returns>
-        protected virtual async Task<bool> OnExpandAsync() {
-            if (this.CanHoldItems && this.FileSystem != null) {
-                if (!this.isContentLoaded) {
-                    this.isContentLoaded = true;
-                    await this.FileSystem.LoadContent(this);
-                }
-
-                return this.items.Count > 0;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Refreshes this item, causing any data to be reloaded
-        /// </summary>
-        public virtual async Task RefreshAsync() {
-            if (this.CanHoldItems && this.FileSystem != null) {
-                if (this.isContentLoaded) {
-                    await this.FileSystem.RefreshContent(this);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Called when this item has been added to a new parent item. <see cref="Parent"/> will not be null.
-        /// This is called after we are added to the parent's internal collection
-        /// </summary>
-        protected virtual void OnAddedToParent() {
-            this.OnParentChanged(this.Parent);
-        }
-
-        /// <summary>
-        /// Called before an item is about to be removed from its parent. <see cref="Parent"/> will remain the same as
-        /// it was before this call. Is this called before we are removed from our parent's internal collection
-        /// </summary>
-        protected virtual void OnRemovingFromParent() {
-            this.IsExpanded = false;
-            if (this.CanHoldItems) {
-                this.ClearItemsRecursiveInternal();
-            }
-        }
-
-        /// <summary>
-        /// Called after an item was fully removed from its parent. Is this called after we
-        /// are removed from our parent's internal collection
-        /// </summary>
-        /// <param name="parent">The previous parent</param>
-        protected virtual void OnRemovedFromParent(TreeEntry parent) {
-            this.OnParentChanged(parent);
-        }
-
-        /// <summary>
-        /// Called by <see cref="OnAddedToParent"/> and <see cref="OnRemovedFromParent"/>. This
-        /// is just used to fire property changed events
-        /// </summary>
-        protected virtual void OnParentChanged(TreeEntry parent) {
-            this.RaisePropertyChanged(nameof(this.Parent));
-            this.RaisePropertyChanged(nameof(this.IsRootContainer));
-            this.RaisePropertyChanged(nameof(this.IsTopLevelFile));
-        }
-
-        public void AddItemCore(TreeEntry item) {
-            this.InsertItemCore(this.items.Count, item);
-        }
-
-        public void AddItemsCore(IEnumerable<TreeEntry> enumerable) {
-            this.EnsureCanHoldItems();
-            int i = this.items.Count;
-            foreach (TreeEntry file in enumerable) {
-                this.InsertItemInternal(i++, file);
-            }
-        }
-
-        public void InsertItemCore(int index, TreeEntry item) {
-            this.EnsureCanHoldItems();
-            this.InsertItemInternal(index, item);
-        }
-
-        private void InsertItemInternal(int index, TreeEntry item) {
-            if (item == null)
-                throw new ArgumentNullException(nameof(item));
-            if (item.Parent != null)
-                throw new Exception("Item already exists in another parent item");
-            if (item.ItemCount > 0 && this.IsPartOfParentHierarchy(item))
-                throw new Exception("Cannot add an item which is already in our parent hierarchy chain");
-
-            item.Parent = this;
-            this.items.Insert(index, item);
-            item.OnAddedToParent();
-            this.OnItemAdded(index, item);
-        }
-
-        public bool RemoveItemCore(TreeEntry item) {
-            this.EnsureCanHoldItems();
-            if (item == null)
-                throw new ArgumentNullException(nameof(item));
-            int index = this.items.IndexOf(item);
-            if (index == -1)
-                return false;
-            this.RemoveItemAtInternal(index);
-            return true;
-        }
-
-        public void RemoveItemAtCore(int index) {
-            this.EnsureCanHoldItems();
-            this.RemoveItemAtInternal(index);
-        }
-
-        private void RemoveItemAtInternal(int index) {
-            TreeEntry item = this.items[index];
-            if (item.Parent != this)
-                throw new Exception("Expected item's parent to equal the current instance");
-
-            item.OnRemovingFromParent();
-            item.Parent = null;
-            this.items.RemoveAt(index);
-            item.OnRemovedFromParent(this);
-            this.OnItemRemoved(index, item);
-        }
-
-        public void ClearItemsRecursiveCore() {
-            this.EnsureCanHoldItems();
-            this.ClearItemsRecursiveInternal();
-        }
+        #endregion
 
         private void ClearItemsRecursiveInternal() {
             for (int i = this.items.Count - 1; i >= 0; i--) {
                 TreeEntry item = this.items[i];
-                if (item.CanHoldItems) {
+                if (item.IsDirectory) {
                     item.ClearItemsRecursiveInternal();
                 }
 
@@ -355,9 +376,10 @@ namespace JetFileBrowser.FileBrowser.FileTree {
             }
         }
 
-        private void EnsureCanHoldItems() {
-            if (!this.CanHoldItems)
-                throw new Exception("This item cannot hold child items");
+        private void ValidateIsDirectory() {
+            if (!this.IsDirectory) {
+                throw new InvalidOperationException("This item is not a directory");
+            }
         }
 
         private bool IsPartOfParentHierarchy(TreeEntry item) {

@@ -14,7 +14,7 @@
             xmlns:zip="clr-namespace:JetFileBrowser.FileBrowser.FileTree.Zip;assembly=JetFileBrowser"
             xmlns:context="clr-namespace:JetFileBrowser.FileBrowser.Context;assembly=JetFileBrowser"
             xmlns:shortcuts="clr-namespace:JetFileBrowser.WPF.Shortcuts"
-            xmlns:fileBrowser="clr-namespace:JetFileBrowser.FileBrowser;assembly=JetFileBrowser"
+            xmlns:fileBrowser="clr-namespace:JetFileBrowser.FileBrowser;assembly=JetFileBrowser" xmlns:controls="clr-namespace:JetFileBrowser.WPF.Explorer.Controls"
             mc:Ignorable="d"
             Title="MainWindow" 
             Height="450" Width="800"
@@ -41,6 +41,10 @@
                 </wpf:DummyTreeItemStyleSelector.WithDummyStyle>
             </wpf:DummyTreeItemStyleSelector>
         </Grid.Resources>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="17*"/>
+            <ColumnDefinition Width="33*"/>
+        </Grid.ColumnDefinitions>
         <ex:FileTreeControl DataContext="{Binding FileTree}"
                             ItemsSource="{Binding Root.Items}"
                             Background="Transparent" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0"
@@ -56,14 +60,6 @@
                 </Style>
             </ex:FileTreeControl.Style>
             <ex:FileTreeControl.Resources>
-                <Style TargetType="{x:Type Run}" x:Key="NBTTagNameRunStyle">
-                    <Setter Property="FontWeight" Value="Bold"/>
-                </Style>
-
-                <Style TargetType="{x:Type Run}" x:Key="NBTTagValueRunStyle">
-                    <Setter Property="FontFamily" Value="Consolas"/>
-                </Style>
-
                 <HierarchicalDataTemplate DataType="{x:Type zip:NestedZipVirtualFile}" ItemsSource="{Binding Items, Mode=OneTime}">
                     <!-- A zip file within another zip file -->
                     <TextBlock Text="{Binding ZipFileName}" ToolTip="{Binding FullZipPath}"/>
@@ -90,5 +86,6 @@
                 </DataTemplate>
             </ex:FileTreeControl.Resources>
         </ex:FileTreeControl>
+        <controls:FileExplorerControl Grid.Column="1" CurrentFolder="{Binding CurrentFolder, Mode=OneWay}"/>
     </Grid>
 </v:WindowEx>

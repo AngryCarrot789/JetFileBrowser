@@ -9,7 +9,7 @@ namespace JetFileBrowser.WPF {
         public Style DefaultStyle { get; set; }
 
         public override Style SelectStyle(object item, DependencyObject container) {
-            if (item is TreeEntry entry && entry.CanHoldItems)
+            if (item is TreeEntry entry && entry.IsDirectory)
                 return this.WithDummyStyle;
             return this.DefaultStyle;
         }

@@ -1,27 +1,23 @@
-using System;
+using System.Threading.Tasks;
 using System.Windows;
 using JetFileBrowser.Drop;
-using JetFileBrowser.Interactivity;
 using JetFileBrowser.Utils;
 
 namespace JetFileBrowser.WPF.Interactivity {
     public static class FileDropAttachments {
-        public static readonly DependencyProperty DropHandlerProperty = DependencyProperty.RegisterAttached("DropHandler", typeof(IDropHandler), typeof(FileDropAttachments), new FrameworkPropertyMetadata(null, OnFileDropNotifierPropertyChanged));
+        public static readonly DependencyProperty DropHandlerProperty = DependencyProperty.RegisterAttached("DropHandler", typeof(IFileDropHandler), typeof(FileDropAttachments), new FrameworkPropertyMetadata(null, OnFileDropNotifierPropertyChanged));
         public static readonly DependencyProperty UsePreviewEventProperty = DependencyProperty.RegisterAttached("UsePreviewEvent", typeof(bool), typeof(FileDropAttachments), new FrameworkPropertyMetadata(BoolBox.False, OnUsePreviewEventPropertyChanged));
-        private static readonly DependencyProperty IsProcessingDragDropProcessProperty = DependencyProperty.RegisterAttached("IsProcessingDragDropProcess", typeof(bool), typeof(FileDropAttachments), new PropertyMetadata(BoolBox.False));
         private static readonly DependencyProperty IsProcessingDragDropEnterProperty = DependencyProperty.RegisterAttached("IsProcessingDragDropEnter", typeof(bool), typeof(FileDropAttachments), new PropertyMetadata(BoolBox.False));
         private static readonly DependencyProperty IsProcessingDragDropLeaveProperty = DependencyProperty.RegisterAttached("IsProcessingDragDropLeave", typeof(bool), typeof(FileDropAttachments), new PropertyMetadata(BoolBox.False));
         public static readonly DependencyProperty IsProcessingQueryDragProperty = DependencyProperty.RegisterAttached("IsProcessingQueryDrag", typeof(bool), typeof(FileDropAttachments), new PropertyMetadata(BoolBox.False));
         private static readonly DependencyProperty LastEntryDropEffectsProperty = DependencyProperty.RegisterAttached("LastEntryDropEffects", typeof(DragDropEffects?), typeof(FileDropAttachments), new PropertyMetadata(null));
 
-
-        public static void SetDropHandler(UIElement element, IDropHandler value) => element.SetValue(DropHandlerProperty, value);
-        public static IDropHandler GetDropHandler(UIElement element) => (IDropHandler) element.GetValue(DropHandlerProperty);
+        public static void SetDropHandler(UIElement element, IFileDropHandler value) => element.SetValue(DropHandlerProperty, value);
+        public static IFileDropHandler GetDropHandler(UIElement element) => (IFileDropHandler) element.GetValue(DropHandlerProperty);
 
         public static void SetUsePreviewEvent(DependencyObject element, bool value) => element.SetValue(UsePreviewEventProperty, value.Box());
         public static bool GetUsePreviewEvent(DependencyObject element) => (bool) element.GetValue(UsePreviewEventProperty);
 
-        private static bool IsProcessingDrop(DependencyObject element) => (bool) element.GetValue(IsProcessingDragDropProcessProperty);
         private static bool IsProcessingDragEnter(DependencyObject element) => (bool) element.GetValue(IsProcessingDragDropEnterProperty);
         private static void SetIsProcessingDragDropLeave(DependencyObject element, bool value) => element.SetValue(IsProcessingDragDropLeaveProperty, value.Box());
         private static bool IsProcessingDragLeave(DependencyObject element) => (bool) element.GetValue(IsProcessingDragDropLeaveProperty);
@@ -96,12 +92,11 @@ namespace JetFileBrowser.WPF.Interactivity {
                 return;
             if (IsProcessingDragEnter(element))
                 return;
-            if (IsProcessingDrop(element))
-                return;
 
-            IDropHandler handler = GetDropHandler(element);
-            if (handler == null)
+            IFileDropHandler handler = GetDropHandler(element);
+            if (handler == null || handler.IsProcessingDrop) {
                 return;
+            }
 
             if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0) {
                 element.SetValue(IsProcessingDragDropEnterProperty, true.Box());
@@ -117,13 +112,11 @@ namespace JetFileBrowser.WPF.Interactivity {
                 return;
             if (IsProcessingDragLeave(element))
                 return;
-            if (IsProcessingDrop(element))
-                return;
             if (GetIsProcessingQueryDrag(element))
                 return;
 
-            IDropHandler handler = GetDropHandler(element);
-            if (handler == null)
+            IFileDropHandler handler = GetDropHandler(element);
+            if (handler == null || handler.IsProcessingDrop)
                 return;
 
             if (e.Data.GetDataPresent(DataFormats.FileDrop)) {
@@ -138,19 +131,27 @@ namespace JetFileBrowser.WPF.Interactivity {
         private static async void OnElementDrop(UIElement element, DragEventArgs e, bool isPreview) {
             if (GetUsePreviewEvent(element) != isPreview)
                 return;
-            if (IsProcessingDrop(element))
-                return;
             if (GetIsProcessingQueryDrag(element))
                 return;
 
-            IDropHandler handler = GetDropHandler(element);
-            if (handler == null)
+            IFileDropHandler handler = GetDropHandler(element);
+            if (handler == null || handler.IsProcessingDrop)
                 return;
 
             if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0) {
-                element.SetValue(IsProcessingDragDropProcessProperty, BoolBox.True);
-                await handler.OnFilesDropped(files);
-                element.ClearValue(IsProcessingDragDropProcessProperty);
+                object effects = element.GetValue(LastEntryDropEffectsProperty);
+
+                handler.IsProcessingDrop = true;
+                try {
+                    await handler.OnFilesDropped(files, (DropType) e.Effects);
+                }
+                catch (TaskCanceledException) {
+                    // do nothing
+                }
+                finally {
+                    handler.IsProcessingDrop = false;
+                }
+
                 element.ClearValue(LastEntryDropEffectsProperty);
             }
         }
@@ -159,11 +160,10 @@ namespace JetFileBrowser.WPF.Interactivity {
             if (GetUsePreviewEvent(element) != isPreview)
                 return;
 
-            DragDropEffects? effects = GetLastEntryDropEffects(element);
-            if (effects.HasValue) {
-                e.Effects = effects.Value;
-                e.Handled = true;
-            }
+            // DragDropEffects? effects = GetLastEntryDropEffects(element);
+            // if (effects.HasValue) {
+            //     e.Effects = effects.Value;
+            // }
         }
 
         private static void QueryContinueDrag(UIElement element, QueryContinueDragEventArgs e, bool isPreview) {
@@ -175,8 +175,8 @@ namespace JetFileBrowser.WPF.Interactivity {
             if (IsProcessingDragLeave(element))
                 return;
 
-            IDropHandler handler = GetDropHandler(element);
-            if (handler == null)
+            IFileDropHandler handler = GetDropHandler(element);
+            if (handler == null || handler.IsProcessingDrop)
                 return;
 
             handler.OnDropLeave(true);

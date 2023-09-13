@@ -6,6 +6,7 @@ using JetFileBrowser.FileBrowser.FileTree;
 namespace JetFileBrowser.WPF.Explorer {
     internal class FileTreeItem : TreeViewItem {
         private bool isProcessingNavigation;
+        private bool isProcessingLeftButtonDown;
 
         public FileTreeItem() {
         }
@@ -14,23 +15,40 @@ namespace JetFileBrowser.WPF.Explorer {
 
         protected override DependencyObject GetContainerForItemOverride() => new FileTreeItem();
 
-        protected override async void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
-            if (this.isProcessingNavigation) {
+        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) {
+            if (e.Handled) {
+                return;
+            }
+            else if (this.isProcessingNavigation) {
                 e.Handled = true;
                 return;
             }
 
-            if (!e.Handled && this.DataContext is TreeEntry file && file.Explorer != null) {
-                this.isProcessingNavigation = true;
+            if (this.DataContext is TreeEntry file && file.FileTree != null) {
+                this.isProcessingLeftButtonDown = true;
                 try {
-                    await file.Explorer.OnNavigate(file);
+                    this.NavigateOnLeftClick(file);
                 }
                 finally {
-                    this.isProcessingNavigation = false;
+                    this.isProcessingLeftButtonDown = false;
                 }
             }
 
             base.OnMouseLeftButtonDown(e);
+        }
+
+        public async void NavigateOnLeftClick(TreeEntry file) {
+            this.isProcessingNavigation = true;
+            try {
+                await file.FileTree.OnNavigate(file);
+            }
+            finally {
+                this.isProcessingNavigation = false;
+            }
+
+            if (!this.isProcessingLeftButtonDown && !this.IsSelected) {
+                this.IsSelected = true;
+            }
         }
     }
 }

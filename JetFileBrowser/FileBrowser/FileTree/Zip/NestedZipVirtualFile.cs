@@ -3,11 +3,9 @@ using System.IO.Compression;
 
 namespace JetFileBrowser.FileBrowser.FileTree.Zip {
     public class NestedZipVirtualFile : ZipEntryVirtualFile, IZipRoot {
-        public override bool CanHoldItems => true;
-
         public ZipArchive Archive { get; set; }
 
-        public NestedZipVirtualFile(TreeFileSystem fileSystem, string fullZipPath) : base(fullZipPath) {
+        public NestedZipVirtualFile(TreeFileSystem fileSystem, string fullZipPath) : base(fullZipPath, true) {
             this.FileSystem = fileSystem;
         }
 

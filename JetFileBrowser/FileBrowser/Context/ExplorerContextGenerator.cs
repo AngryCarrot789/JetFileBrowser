@@ -29,7 +29,7 @@ namespace JetFileBrowser.FileBrowser.Context {
                 return;
             }
 
-            FileTreeViewModel explorer = item.Explorer;
+            FileTreeViewModel explorer = item.FileTree;
             if (explorer != null || context.TryGetContext(out explorer)) {
                 if (item.ContainsKey(Win32FileSystem.FilePathKey)) {
                     list.Add(new CommandContextEntry("Open", explorer.OpenItemCommand, item));

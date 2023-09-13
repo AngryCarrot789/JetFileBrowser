@@ -8,15 +8,11 @@ using JetFileBrowser.WPF.Utils;
 namespace JetFileBrowser.WPF.AttachedProperties {
     public static class HorizontalScrolling {
         public static readonly DependencyProperty UseHorizontalScrollingProperty = DependencyProperty.RegisterAttached("UseHorizontalScrolling", typeof(bool), typeof(HorizontalScrolling), new PropertyMetadata(BoolBox.False, OnUseHorizontalScrollWheelPropertyChanged));
-        public static readonly DependencyProperty IsRequireShiftForHorizontalScrollProperty = DependencyProperty.RegisterAttached("IsRequireShiftForHorizontalScroll", typeof(bool), typeof(HorizontalScrolling), new PropertyMetadata(BoolBox.True));
         public static readonly DependencyProperty ForceHorizontalScrollingProperty = DependencyProperty.RegisterAttached("ForceHorizontalScrolling", typeof(bool), typeof(HorizontalScrolling), new PropertyMetadata(BoolBox.False));
         public static readonly DependencyProperty HorizontalScrollingAmountProperty = DependencyProperty.RegisterAttached("HorizontalScrollingAmount", typeof(int), typeof(HorizontalScrolling), new PropertyMetadata(SystemParameters.WheelScrollLines));
 
         public static void SetUseHorizontalScrolling(DependencyObject element, bool value) => element.SetValue(UseHorizontalScrollingProperty, value);
         public static bool GetUseHorizontalScrolling(DependencyObject element) => (bool) element.GetValue(UseHorizontalScrollingProperty);
-
-        public static void SetIsRequireShiftForHorizontalScroll(DependencyObject element, bool value) => element.SetValue(IsRequireShiftForHorizontalScrollProperty, value);
-        public static bool GetIsRequireShiftForHorizontalScroll(DependencyObject element) => (bool) element.GetValue(IsRequireShiftForHorizontalScrollProperty);
 
         public static bool GetForceHorizontalScrollingValue(DependencyObject d) => (bool) d.GetValue(ForceHorizontalScrollingProperty);
         public static void SetForceHorizontalScrollingValue(DependencyObject d, bool value) => d.SetValue(ForceHorizontalScrollingProperty, value);
@@ -39,11 +35,7 @@ namespace JetFileBrowser.WPF.AttachedProperties {
         private static void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e) {
             if (sender is UIElement element && e.Delta != 0) {
                 ScrollViewer scroller = VisualTreeUtils.FindVisualChild<ScrollViewer>(element);
-                if (scroller == null) {
-                    return;
-                }
-
-                if (GetIsRequireShiftForHorizontalScroll(element) && scroller.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled) {
+                if (scroller == null || scroller.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled) {
                     return;
                 }
 
@@ -53,7 +45,7 @@ namespace JetFileBrowser.WPF.AttachedProperties {
                 }
 
                 if (Keyboard.Modifiers == ModifierKeys.Shift || Mouse.MiddleButton == MouseButtonState.Pressed || GetForceHorizontalScrollingValue(element)) {
-                    int count = (e.Delta / 120) * amount;
+                    int count = Math.Abs(e.Delta) / 120 * amount;
                     if (e.Delta < 0) {
                         for (int i = 0; i < count; i++) {
                             scroller.LineRight();
